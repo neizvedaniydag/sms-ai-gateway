@@ -13,11 +13,12 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 /**
- * Главный экран приложения для настройки API ключа и проверки разрешений
+ * Главный экран приложения для настройки API ключа, белого списка и проверки разрешений
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var apiKeyInput: EditText
+    private lateinit var whitelistInput: EditText
     private lateinit var saveButton: Button
     private lateinit var statusText: TextView
 
@@ -26,22 +27,29 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         apiKeyInput = findViewById(R.id.apiKeyInput)
+        whitelistInput = findViewById(R.id.whitelistInput)
         saveButton = findViewById(R.id.saveButton)
         statusText = findViewById(R.id.statusText)
 
-        // Загружаем сохранённый API ключ
-        val savedKey = Config.getApiKey(this)
-        apiKeyInput.setText(savedKey)
+        // Загружаем сохранённые настройки
+        apiKeyInput.setText(Config.getApiKey(this))
+        
+        val whitelist = Config.getWhitelist(this)
+        whitelistInput.setText(whitelist.joinToString("\n"))
 
         saveButton.setOnClickListener {
             val newKey = apiKeyInput.text.toString().trim()
+            val newWhitelist = whitelistInput.text.toString().trim()
+
             if (newKey.isEmpty()) {
                 Toast.makeText(this, "Введите API ключ", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
             Config.saveApiKey(this, newKey)
-            Toast.makeText(this, "API ключ сохранён", Toast.LENGTH_SHORT).show()
+            Config.saveWhitelist(this, newWhitelist)
+            
+            Toast.makeText(this, "✅ Настройки сохранены", Toast.LENGTH_SHORT).show()
             updateStatus()
         }
 
@@ -71,22 +79,45 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStatus() {
         val hasApiKey = Config.getApiKey(this).isNotEmpty()
+        val whitelist = Config.getWhitelist(this)
         val hasSmsPermission = ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.RECEIVE_SMS
         ) == PackageManager.PERMISSION_GRANTED
 
         val status = buildString {
-            appendLine("Статус:")
+            appendLine("📊 Статус:")
             appendLine("")
             appendLine(if (hasApiKey) "✅ API ключ настроен" else "❌ API ключ не настроен")
             appendLine(if (hasSmsPermission) "✅ Разрешения SMS получены" else "❌ Требуются разрешения SMS")
             appendLine("")
+            
+            // Белый список
+            appendLine("👥 Белый список:")
+            if (whitelist.isEmpty()) {
+                appendLine("⚠️  Пустой - отвечает ВСЕМ (небезопасно!)")
+                appendLine("   Добавьте номера доверенных людей")
+            } else {
+                appendLine("✅ ${whitelist.size} номер(ов):")
+                whitelist.take(5).forEach { phone ->
+                    appendLine("   • $phone")
+                }
+                if (whitelist.size > 5) {
+                    appendLine("   ... и ещё ${whitelist.size - 5}")
+                }
+            }
+            appendLine("")
+            
             if (hasApiKey && hasSmsPermission) {
-                appendLine("✅ Готово к работе!")
+                appendLine("🚀 Готово к работе!")
                 appendLine("")
-                appendLine("Отправьте SMS на этот телефон с вопросом.")
-                appendLine("Ответ придёт автоматически через Perplexity AI.")
+                if (whitelist.isEmpty()) {
+                    appendLine("⚠️  Рекомендация: добавьте номера")
+                    appendLine("   в белый список для безопасности")
+                } else {
+                    appendLine("Только номера из белого списка")
+                    appendLine("смогут получать ответы AI.")
+                }
             } else {
                 appendLine("⚠️ Завершите настройку")
             }

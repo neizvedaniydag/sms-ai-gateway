@@ -9,6 +9,7 @@ import android.util.Log
 /**
  * BroadcastReceiver для приёма входящих SMS
  * Автоматически запускается при получении SMS (если есть разрешение RECEIVE_SMS)
+ * БЕЗОПАСНОСТЬ: Обрабатывает только SMS от номеров из белого списка
  */
 class SmsReceiver : BroadcastReceiver() {
 
@@ -31,16 +32,25 @@ class SmsReceiver : BroadcastReceiver() {
         Log.i(TAG, "SMS received from: $senderPhone")
         Log.d(TAG, "Message: $fullMessage")
 
+        // ⚠️ ПРОВЕРКА БЕЛОГО СПИСКА - ключевая защита от спама и посторонних
+        if (!Config.isPhoneWhitelisted(context, senderPhone)) {
+            Log.w(TAG, "❌ Phone $senderPhone NOT in whitelist - IGNORING")
+            // Не отправляем ответ, не логируем детали - просто игнорируем
+            return
+        }
+
+        Log.i(TAG, "✅ Phone $senderPhone IS whitelisted - processing request")
+
         // Запускаем ForegroundService для обработки SMS
         // Используем ForegroundService чтобы Android не убил процесс
         val serviceIntent = Intent(context, AiSmsService::class.java).apply {
             putExtra(EXTRA_QUESTION, fullMessage)
-            putExtra(EXTRA_SENDER, senderPhone)
+            putExtra(EXTRA_SENDER, senderPhone) // Гарантируем что ответ уйдёт именно этому номеру
         }
 
         try {
             context.startForegroundService(serviceIntent)
-            Log.i(TAG, "AiSmsService started successfully")
+            Log.i(TAG, "AiSmsService started successfully for $senderPhone")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start AiSmsService", e)
         }
